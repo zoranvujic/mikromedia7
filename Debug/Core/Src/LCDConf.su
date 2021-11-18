@@ -1,0 +1,10 @@
+LCDConf.c:110:13:LcdWriteReg	16	static
+LCDConf.c:121:13:LcdWriteData	16	static
+LCDConf.c:132:13:LcdWriteDataMultiple	16	static
+LCDConf.c:145:13:LcdReadDataMultiple	16	static
+LCDConf.c:158:6:GUI_TOUCH_X_ActivateX	4	static
+LCDConf.c:161:6:GUI_TOUCH_X_ActivateY	4	static
+LCDConf.c:164:6:GUI_TOUCH_X_MeasureX	8	static
+LCDConf.c:168:6:GUI_TOUCH_X_MeasureY	8	static
+LCDConf.c:182:6:LCD_X_Config	144	static
+LCDConf.c:249:5:LCD_X_DisplayDriver	32	static
