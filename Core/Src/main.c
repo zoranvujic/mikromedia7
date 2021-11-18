@@ -55,18 +55,15 @@ ADC_HandleTypeDef hadc3;
 I2C_HandleTypeDef hi2c1;
 
 osThreadId defaultTaskHandle;
-osThreadId task2Handle;
+osThreadId acctempTaskHandle;
+osThreadId buttonTaskHandle;
+osMessageQId keyPressedQHandle;
 /* USER CODE BEGIN PV */
 WM_HWIN hWin,hWinText,hWinList;
 
-int keyPressed=0,state = 0;
-
-uint8_t nije_prikazano=1;
-
+int state = 0;
 uint32_t i=0,j=0;
-uint8_t data[30];
-uint16_t xCoord = 0,rawADC=0;
-uint32_t sum =0;
+uint16_t rawADC=0;
 
 float temp=0.0;
 
@@ -80,7 +77,8 @@ static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_ADC3_Init(void);
 void StartDefaultTask(void const * argument);
-void Task2_init(void const * argument);
+void AccTemp_init(void const * argument);
+void ButtonTask_init(void const * argument);
 
 /* USER CODE BEGIN PFP */
 extern volatile GUI_TIMER_TIME OS_TimeMS;
@@ -153,6 +151,11 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* definition and creation of keyPressedQ */
+  osMessageQDef(keyPressedQ, 5, uint32_t);
+  keyPressedQHandle = osMessageCreate(osMessageQ(keyPressedQ), NULL);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -162,9 +165,13 @@ int main(void)
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 1024);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-  /* definition and creation of task2 */
-  osThreadDef(task2, Task2_init, osPriorityBelowNormal, 0, 512);
-  task2Handle = osThreadCreate(osThread(task2), NULL);
+  /* definition and creation of acctempTask */
+  osThreadDef(acctempTask, AccTemp_init, osPriorityBelowNormal, 0, 512);
+  acctempTaskHandle = osThreadCreate(osThread(acctempTask), NULL);
+
+  /* definition and creation of buttonTask */
+  osThreadDef(buttonTask, ButtonTask_init, osPriorityIdle, 0, 512);
+  buttonTaskHandle = osThreadCreate(osThread(buttonTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -398,95 +405,18 @@ void StartDefaultTask(void const * argument)
 	GUI_SetColor(GUI_RED);
 	hWin = CreateMenu();
 
-//	char *ptr;
+	vTaskSuspend(acctempTaskHandle);
+
   /* Infinite loop */
 	for (;;)
 	{
-		/*uint16_t xcoord = x;
-		uint16_t ycoord = y;
-		uint16_t zcoord = z;
-
-		i++;
-		STMPE610_read_xyz();
-
-		GUI_SetColor(GUI_GREEN);
-		GUI_DispStringAt("xyz RAW",500,10);
-
-		ptr = pvPortMalloc(30*sizeof(char));
-		sprintf((char*)ptr,"x: %04d\r y: %04d\r z: %04d", (uint16_t)xcoord,(uint16_t)ycoord,(uint16_t)zcoord);
-		GUI_DispStringAt(ptr,500,50);
-		vPortFree(ptr);
-		*/
+		uint32_t btnPressed;
 
 		STMPE610_read_xyz();
 		GUI_TOUCH_Exec();
-		keyPressed = GUI_GetKey();
-		switch(keyPressed)
-		{
-			case ID_BTN_TEMP:
-				WM_DeleteWindow(hWin);
-				hWin = CreateTempWin();
+		btnPressed = GUI_GetKey();
 
-				hWinList = WM_GetDialogItem(hWin, ID_LISTTEMP);
-
-				state = ID_BTN_TEMP;
-				i += 2;
-			break;
-			case ID_BTN_ACC:
-				WM_DeleteWindow(hWin);
-				hWin = CreateAccWin();
-
-				hWinText = WM_GetDialogItem(hWin, ID_TEXT_TEST);
-				hWinList = WM_GetDialogItem(hWin, ID_LISTACC);
-
-				state = ID_BTN_ACC;
-
-			break;
-			case ID_BTN_NAZAD:
-				GUI_Clear();
-				WM_DeleteWindow(hWin);
-				hWin = CreateMenu();
-
-				state = 0;
-			break;
-			case ID_BTN_NAZAD_TEMP:
-				GUI_Clear();
-				WM_DeleteWindow(hWin);
-				hWin = CreateMenu();
-
-				state = 0;
-
-
-			break;
-
-	  	}
-		if (state == ID_BTN_ACC) {
-			char* acc_x_val;
-			char* acc_y_val;
-			char* acc_z_val;
-//			acc_x = (uint16_t) ADXL345_GetX_ACCEL();
-//			acc_y = (uint16_t) ADXL345_GetY_ACCEL();
-//			acc_z = (uint16_t) ADXL345_GetZ_ACCEL();
-//			sprintf(test_string, "%d", acc_x);
-//
-//					j = TEXT_SetText(hWinText, test_string);
-			acc_x_val = pvPortMalloc(6*sizeof(char));
-			acc_y_val = pvPortMalloc(6*sizeof(char));
-			acc_z_val = pvPortMalloc(6*sizeof(char));
-
-			hWinList = WM_GetDialogItem(hWin, ID_LISTACC);
-			sprintf((char*)acc_x_val, "%d", accel_x);
-			sprintf((char*)acc_y_val, "%d", accel_y);
-			sprintf((char*)acc_z_val, "%d", accel_z);
-			LISTVIEW_SetItemText(hWinList, 0, 0, acc_x_val);
-			LISTVIEW_SetItemText(hWinList, 1, 0, acc_y_val);
-			LISTVIEW_SetItemText(hWinList, 2, 0, acc_z_val);
-
-
-			vPortFree(acc_x_val);
-			vPortFree(acc_y_val);
-			vPortFree(acc_z_val);
-		}
+		osMessagePut(keyPressedQHandle, (uint32_t)btnPressed, 50);
 
 		GUI_Delay(10);
 		osDelay(10);
@@ -494,60 +424,140 @@ void StartDefaultTask(void const * argument)
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_Task2_init */
+/* USER CODE BEGIN Header_AccTemp_init */
 /**
-* @brief Function implementing the task2 thread.
+* @brief Function implementing the acctempTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_Task2_init */
-void Task2_init(void const * argument)
+/* USER CODE END Header_AccTemp_init */
+void AccTemp_init(void const * argument)
 {
-  /* USER CODE BEGIN Task2_init */
+  /* USER CODE BEGIN AccTemp_init */
   /* Infinite loop */
   for(;;)
   {
-	  j+=3;
-	  HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_15);
-	  ADXL345_read_xyz();
 
-	  HAL_ADC_Start(&hadc3);
-	  HAL_ADC_PollForConversion(&hadc3, HAL_MAX_DELAY);
-	  rawADC=HAL_ADC_GetValue(&hadc3);
-	  temp=(float)rawADC;
-	  temp=100.0*((temp)/(2048)-0.5);
+	  	  j+=3;
+	  	  HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_15);
+	  	  ADXL345_read_xyz();
 
-
-
-	  if (state == ID_BTN_TEMP) {
-		  char* temp_val;
-
-		  temp_val = pvPortMalloc(4*sizeof(char));
-		  uint8_t ostatak ;
-		  float temp2;
-		  temp2=temp*10;
-		  ostatak = (uint8_t)temp2%10;
-		  hWinList = WM_GetDialogItem(hWin, ID_LISTTEMP);
-		  sprintf((char*)temp_val, "%d.%d", (uint16_t)temp,ostatak);
-
-		  LISTVIEW_SetItemText(hWinList, 0, 0,temp_val );
+	  	  HAL_ADC_Start(&hadc3);
+	  	  HAL_ADC_PollForConversion(&hadc3, HAL_MAX_DELAY);
+	  	  rawADC=HAL_ADC_GetValue(&hadc3);
+	  	  temp=(float)rawADC;
+	  	  temp=100.0*((temp)/(2048)-0.5);
 
 
-		  vPortFree(temp_val);
-	  }
 
-//	  if(state==ID_BTN_ACC)
-//	  {
-//		  char* acc_x_val;
-//		  acc_x_val = pvPortMalloc(6*sizeof(char));
-//		  sprintf((char*)acc_x_val, "%d", accel_x);
-//		  EDIT_SetText(hWinText,acc_x_val);
-//		  vPortFree(acc_x_val);
-//	  }
+	  	  if (state == ID_BTN_TEMP) {
+	  		  char* temp_val;
 
-	  osDelay(200);
+	  		  temp_val = pvPortMalloc(4*sizeof(char));
+	  		  uint8_t ostatak ;
+	  		  float temp2;
+	  		  temp2=temp*10;
+	  		  ostatak = (uint8_t)temp2%10;
+	  		  hWinList = WM_GetDialogItem(hWin, ID_LISTTEMP);
+	  		  sprintf((char*)temp_val, "%d.%d", (uint16_t)temp,ostatak);
+
+	  		  LISTVIEW_SetItemText(hWinList, 0, 0,temp_val );
+
+
+	  		  vPortFree(temp_val);
+	  	  }
+	  	  osDelay(200);
   }
-  /* USER CODE END Task2_init */
+  /* USER CODE END AccTemp_init */
+}
+
+/* USER CODE BEGIN Header_ButtonTask_init */
+/**
+* @brief Function implementing the buttonTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_ButtonTask_init */
+void ButtonTask_init(void const * argument)
+{
+  /* USER CODE BEGIN ButtonTask_init */
+	osEvent evt;
+  /* Infinite loop */
+  for(;;)
+  {
+
+	  evt = osMessageGet(keyPressedQHandle, 20);
+	  uint32_t btnPressed;
+	  btnPressed = (uint32_t)evt.value.p;
+	  switch(btnPressed)
+	  		{
+	  			case ID_BTN_TEMP:
+	  				WM_DeleteWindow(hWin);
+	  				hWin = CreateTempWin();
+
+	  				hWinList = WM_GetDialogItem(hWin, ID_LISTTEMP);
+
+	  				vTaskResume(acctempTaskHandle);
+
+	  				state = ID_BTN_TEMP;
+	  				i += 2;
+	  			break;
+	  			case ID_BTN_ACC:
+	  				WM_DeleteWindow(hWin);
+	  				hWin = CreateAccWin();
+
+	  				hWinText = WM_GetDialogItem(hWin, ID_TEXT_TEST);
+	  				hWinList = WM_GetDialogItem(hWin, ID_LISTACC);
+
+	  				vTaskResume(acctempTaskHandle);
+
+	  				state = ID_BTN_ACC;
+
+	  			break;
+	  			case ID_BTN_NAZAD:
+	  				GUI_Clear();
+	  				WM_DeleteWindow(hWin);
+	  				hWin = CreateMenu();
+	  				vTaskSuspend(acctempTaskHandle);
+	  				state = 0;
+	  			break;
+	  			case ID_BTN_NAZAD_TEMP:
+	  				GUI_Clear();
+	  				WM_DeleteWindow(hWin);
+	  				hWin = CreateMenu();
+	  				vTaskSuspend(acctempTaskHandle);
+	  				state = 0;
+
+
+	  			break;
+
+	  	  	}
+	  		if (state == ID_BTN_ACC) {
+	  			char* acc_x_val;
+	  			char* acc_y_val;
+	  			char* acc_z_val;
+
+//				j = TEXT_SetText(hWinText, test_string);
+	  			acc_x_val = pvPortMalloc(6*sizeof(char));
+	  			acc_y_val = pvPortMalloc(6*sizeof(char));
+	  			acc_z_val = pvPortMalloc(6*sizeof(char));
+
+	  			hWinList = WM_GetDialogItem(hWin, ID_LISTACC);
+	  			sprintf((char*)acc_x_val, "%d", accel_x);
+	  			sprintf((char*)acc_y_val, "%d", accel_y);
+	  			sprintf((char*)acc_z_val, "%d", accel_z);
+	  			LISTVIEW_SetItemText(hWinList, 0, 0, acc_x_val);
+	  			LISTVIEW_SetItemText(hWinList, 1, 0, acc_y_val);
+	  			LISTVIEW_SetItemText(hWinList, 2, 0, acc_z_val);
+
+
+	  			vPortFree(acc_x_val);
+	  			vPortFree(acc_y_val);
+	  			vPortFree(acc_z_val);
+	  		}
+    osDelay(10);
+  }
+  /* USER CODE END ButtonTask_init */
 }
 
 /**
