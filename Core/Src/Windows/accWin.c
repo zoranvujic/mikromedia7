@@ -32,7 +32,7 @@
 #define ID_WINDOW_ACC        (GUI_ID_USER + 0x04)
 #define ID_LISTACC        (GUI_ID_USER + 0x05)
 #define ID_BTN_NAZAD        (GUI_ID_USER + 0x06)
-#define ID_TEXT_TEST        (GUI_ID_USER + 0x07)
+//#define ID_TEXT_TEST        (GUI_ID_USER + 0x07)
 #define ID_TEXT_ACC        (GUI_ID_USER + 0x08)
 
 
@@ -56,9 +56,9 @@
 static const GUI_WIDGET_CREATE_INFO _aDialogCreate[] = {
   { WINDOW_CreateIndirect, "accWin", ID_WINDOW_ACC, 0, 0, 800, 480, 0, 0x0, 0 },
   { LISTVIEW_CreateIndirect, "Listview", ID_LISTACC, 163, 239, 446, 38, 0, 0x0, 0 },
-  { BUTTON_CreateIndirect, "Nazad", ID_BTN_NAZAD, 13, 14, 141, 46, 0, 0x0, 0 },
-  { TEXT_CreateIndirect, "Accelerometer", ID_TEXT_TEST, 158, 201, 86, 26, 0, 0x0, 0 },
-  { TEXT_CreateIndirect, "test", ID_TEXT_ACC, 139, 113, 80, 20, 0, 0x0, 0 },
+  { BUTTON_CreateIndirect, "Nazad", ID_BTN_NAZAD, 25, 25, 150, 50, 0, 0x0, 0 },
+  { TEXT_CreateIndirect, "Akcelerometar", ID_TEXT_ACC,  163, 220, 80, 20, 0, 0x0, 0 },
+//  { TEXT_CreateIndirect, "test", ID_TEXT_TEST, 139, 113, 80, 20, 0, 0x0, 0 },
   // USER START (Optionally insert additional widgets)
   // USER END
 };

@@ -32,7 +32,8 @@
 #define ID_MENU_WINDOW     (GUI_ID_USER + 0x00)
 #define ID_BTN_TEMP     (GUI_ID_USER + 0x01)
 #define ID_BTN_ACC     (GUI_ID_USER + 0x02)
-
+#define ID_BTN_AUTO 	(GUI_ID_USER + 0x10)
+#define ID_BTN_TEMP_GRAPH 	(GUI_ID_USER + 0x11)
 
 // USER START (Optionally insert additional defines)
 // USER END
@@ -53,8 +54,10 @@
 */
 static const GUI_WIDGET_CREATE_INFO _aDialogCreate[] = {
   { WINDOW_CreateIndirect, "Menu", ID_MENU_WINDOW, 0, 0, 800, 480, 0, 0x0, 0 },
-  { BUTTON_CreateIndirect, "temperatura", ID_BTN_TEMP, 25, 25, 150, 50, 0, 0x0, 0 },
-  { BUTTON_CreateIndirect, "accelerometar", ID_BTN_ACC, 25, 100, 150, 50, 0, 0x0, 0 },
+  { BUTTON_CreateIndirect, "TEMPERATURA", ID_BTN_TEMP, 25, 25, 150, 50, 0, 0x0, 0 },
+  { BUTTON_CreateIndirect, "AKCELEROMETAR", ID_BTN_ACC, 25, 100, 150, 50, 0, 0x0, 0 },
+  { BUTTON_CreateIndirect, "AUTOMATSKI", ID_BTN_AUTO, 25, 250, 150, 50, 0, 0x0, 0 },
+  { BUTTON_CreateIndirect, "GRAFIK TEMPERATURE", ID_BTN_TEMP_GRAPH, 25, 175, 150, 50, 0, 0x0, 0 },
   // USER START (Optionally insert additional widgets)
   // USER END
 };
@@ -112,10 +115,39 @@ static void _cbDialog(WM_MESSAGE * pMsg) {
       // USER END
       }
       break;
+      case ID_BTN_AUTO: // Notifications sent by 'automatski'
+		switch(NCode) {
+		case WM_NOTIFICATION_CLICKED:
+		 // USER START (Optionally insert code for reacting on notification message)
+		 // USER END
+		 break;
+		case WM_NOTIFICATION_RELEASED:
+		 // USER START (Optionally insert code for reacting on notification message)
+		 // USER END
+		 break;
+		// USER START (Optionally insert additional code for further notification handling)
+		// USER END
+		}
+		break;
+		case ID_BTN_TEMP_GRAPH: // Notifications sent by 'grafik temperature'
+			switch(NCode) {
+				case WM_NOTIFICATION_CLICKED:
+				 // USER START (Optionally insert code for reacting on notification message)
+				 // USER END
+				 break;
+				case WM_NOTIFICATION_RELEASED:
+				 // USER START (Optionally insert code for reacting on notification message)
+				 // USER END
+				 break;
+			// USER START (Optionally insert additional code for further notification handling)
+			// USER END
+			}
+		break;
     // USER START (Optionally insert additional code for further Ids)
     // USER END
     }
     break;
+
   // USER START (Optionally insert additional message handling)
   // USER END
   default:

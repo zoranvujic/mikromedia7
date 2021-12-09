@@ -70,7 +70,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../STemWinLib/inc/SLIDER.h ../STemWinLib/inc/SPINBOX.h \
  ../STemWinLib/inc/TEXT.h ../STemWinLib/inc/TREEVIEW.h \
  ../STemWinLib/inc/KNOB.h ../Core/Inc/Windows/accWin.h \
- ../Core/Inc/Windows/tempWin.h ../Drivers/Hardware/Inc/ADXL345.h
+ ../Core/Inc/Windows/tempWin.h ../Core/Inc/Windows/tempGraphWin.h \
+ ../Drivers/Hardware/Inc/ADXL345.h
 
 ../Core/Inc/main.h:
 
@@ -265,5 +266,7 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/Windows/accWin.h:
 
 ../Core/Inc/Windows/tempWin.h:
+
+../Core/Inc/Windows/tempGraphWin.h:
 
 ../Drivers/Hardware/Inc/ADXL345.h:

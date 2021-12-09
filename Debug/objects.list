@@ -12,6 +12,7 @@
 "./Core/Src/Windows/MenuDLG.o"
 "./Core/Src/Windows/accWin.o"
 "./Core/Src/Windows/accWinDLG.o"
+"./Core/Src/Windows/tempGraphWin.o"
 "./Core/Src/Windows/tempWin.o"
 "./Core/Startup/startup_stm32f746zgtx.o"
 "./Drivers/Hardware/Src/ADXL345.o"

@@ -13,6 +13,8 @@
 #define ID_MENU_WINDOW     (GUI_ID_USER + 0x00)
 #define ID_BTN_TEMP     (GUI_ID_USER + 0x01)
 #define ID_BTN_ACC     (GUI_ID_USER + 0x02)
+#define ID_BTN_AUTO 	(GUI_ID_USER + 0x10)
+#define ID_BTN_TEMP_GRAPH 	(GUI_ID_USER + 0x11)
 
 WM_HWIN CreateMenu(void);
 

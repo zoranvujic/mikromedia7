@@ -29,6 +29,7 @@
 #include "Windows/MenuDLG.h"
 #include "Windows/accWin.h"
 #include "Windows/tempWin.h"
+#include "Windows/tempGraphWin.h"
 #include "ADXL345.h"
 #include "string.h"
 #include "stdio.h"
@@ -41,7 +42,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-//#define TOUCH_KOORD
+#define MAX_TEMP 26.5f
+#define MIN_TEMP 25.0f
+#define PERIOD_TAJMER 5000
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -57,15 +61,22 @@ I2C_HandleTypeDef hi2c1;
 osThreadId defaultTaskHandle;
 osThreadId acctempTaskHandle;
 osThreadId buttonTaskHandle;
+osThreadId tempRegTaskHandle;
 osMessageQId keyPressedQHandle;
+osTimerId periodicTimerHandle;
 /* USER CODE BEGIN PV */
 WM_HWIN hWin,hWinText,hWinList;
+GRAPH_DATA_Handle hData;
+GRAPH_DATA_Handle hData1;
+GRAPH_DATA_Handle hData2;
+GRAPH_SCALE_Handle hScale;
 
 int state = 0;
 uint32_t i=0,j=0;
 uint16_t rawADC=0;
 
 float temp=0.0;
+uint8_t graph=0, ekran=0;
 
 extern uint16_t x,y,z;
 extern uint16_t accel_x, accel_y, accel_z;
@@ -79,6 +90,8 @@ static void MX_ADC3_Init(void);
 void StartDefaultTask(void const * argument);
 void AccTemp_init(void const * argument);
 void ButtonTask_init(void const * argument);
+void TempRegTask_init(void const * argument);
+void PTCallback(void const * argument);
 
 /* USER CODE BEGIN PFP */
 extern volatile GUI_TIMER_TIME OS_TimeMS;
@@ -147,6 +160,11 @@ int main(void)
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
+  /* Create the timer(s) */
+  /* definition and creation of periodicTimer */
+  osTimerDef(periodicTimer, PTCallback);
+  periodicTimerHandle = osTimerCreate(osTimer(periodicTimer), osTimerPeriodic, NULL);
+
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
@@ -172,6 +190,10 @@ int main(void)
   /* definition and creation of buttonTask */
   osThreadDef(buttonTask, ButtonTask_init, osPriorityIdle, 0, 512);
   buttonTaskHandle = osThreadCreate(osThread(buttonTask), NULL);
+
+  /* definition and creation of tempRegTask */
+  osThreadDef(tempRegTask, TempRegTask_init, osPriorityLow, 0, 128);
+  tempRegTaskHandle = osThreadCreate(osThread(tempRegTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -383,9 +405,77 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-uint32_t suma(uint32_t x)
+void createMenuTemp()
 {
-	return x+5;
+	WM_DeleteWindow(hWin);
+	hWin = CreateTempWin();
+
+	hWinList = WM_GetDialogItem(hWin, ID_LISTTEMP);
+
+	vTaskResume(acctempTaskHandle);
+
+	state = ID_BTN_TEMP;
+}
+
+void menuTemp()
+{
+	char* temp_val;
+	uint16_t  tempInt;
+	uint8_t ostatak ;
+
+	temp_val = pvPortMalloc(4*sizeof(char));
+
+
+	float temp2;
+	temp2=temp*10.0;
+
+	tempInt = (uint16_t)temp2;
+	ostatak = tempInt%10;
+	tempInt = (uint16_t)(temp2/10.0);
+
+	hWinList = WM_GetDialogItem(hWin, ID_LISTTEMP);
+	sprintf((char*)temp_val, "%d.%d", tempInt,ostatak);
+
+	LISTVIEW_SetItemText(hWinList, 0, 0,temp_val );
+
+
+	vPortFree(temp_val);
+}
+void createMenuAccel()
+{
+	WM_DeleteWindow(hWin);
+	hWin = CreateAccWin();
+
+	hWinText = WM_GetDialogItem(hWin, ID_TEXT_ACC);
+	hWinList = WM_GetDialogItem(hWin, ID_LISTACC);
+
+	vTaskResume(acctempTaskHandle);
+
+	state = ID_BTN_ACC;
+}
+void menuAccel()
+{
+	char* acc_x_val;
+	char* acc_y_val;
+	char* acc_z_val;
+
+//	j = TEXT_SetText(hWinText, test_string);
+	acc_x_val = pvPortMalloc(6*sizeof(char));
+	acc_y_val = pvPortMalloc(6*sizeof(char));
+	acc_z_val = pvPortMalloc(6*sizeof(char));
+
+	hWinList = WM_GetDialogItem(hWin, ID_LISTACC);
+	sprintf((char*)acc_x_val, "%d", accel_x);
+	sprintf((char*)acc_y_val, "%d", accel_y);
+	sprintf((char*)acc_z_val, "%d", accel_z);
+	LISTVIEW_SetItemText(hWinList, 0, 0, acc_x_val);
+	LISTVIEW_SetItemText(hWinList, 1, 0, acc_y_val);
+	LISTVIEW_SetItemText(hWinList, 2, 0, acc_z_val);
+
+
+	vPortFree(acc_x_val);
+	vPortFree(acc_y_val);
+	vPortFree(acc_z_val);
 }
 /* USER CODE END 4 */
 
@@ -405,6 +495,7 @@ void StartDefaultTask(void const * argument)
 	GUI_SetColor(GUI_RED);
 	hWin = CreateMenu();
 
+	vTaskSuspend(tempRegTaskHandle);
 	vTaskSuspend(acctempTaskHandle);
 
   /* Infinite loop */
@@ -434,37 +525,30 @@ void StartDefaultTask(void const * argument)
 void AccTemp_init(void const * argument)
 {
   /* USER CODE BEGIN AccTemp_init */
+	vTaskResume(tempRegTaskHandle);
   /* Infinite loop */
   for(;;)
   {
+	  	  uint16_t tempGraph;
 
-	  	  j+=3;
-	  	  HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_15);
 	  	  ADXL345_read_xyz();
 
 	  	  HAL_ADC_Start(&hadc3);
 	  	  HAL_ADC_PollForConversion(&hadc3, HAL_MAX_DELAY);
 	  	  rawADC=HAL_ADC_GetValue(&hadc3);
+	  	  tempGraph = rawADC;
 	  	  temp=(float)rawADC;
 	  	  temp=100.0*((temp)/(2048)-0.5);
-
+	  	  tempGraph=(uint16_t)(temp*50.0);
+	  	  tempGraph=tempGraph-1100;
 
 
 	  	  if (state == ID_BTN_TEMP) {
-	  		  char* temp_val;
-
-	  		  temp_val = pvPortMalloc(4*sizeof(char));
-	  		  uint8_t ostatak ;
-	  		  float temp2;
-	  		  temp2=temp*10;
-	  		  ostatak = (uint8_t)temp2%10;
-	  		  hWinList = WM_GetDialogItem(hWin, ID_LISTTEMP);
-	  		  sprintf((char*)temp_val, "%d.%d", (uint16_t)temp,ostatak);
-
-	  		  LISTVIEW_SetItemText(hWinList, 0, 0,temp_val );
-
-
-	  		  vPortFree(temp_val);
+	  		  menuTemp();
+	  	  }
+	  	  else if(state == ID_BTN_TEMP_GRAPH)
+	  	  {
+	  		  GRAPH_DATA_YT_AddValue(hData, (uint16_t)((tempGraph)));
 	  	  }
 	  	  osDelay(200);
   }
@@ -491,28 +575,30 @@ void ButtonTask_init(void const * argument)
 	  btnPressed = (uint32_t)evt.value.p;
 	  switch(btnPressed)
 	  		{
-	  			case ID_BTN_TEMP:
+				case ID_BTN_TEMP:
+					createMenuTemp();
+
+				break;
+	  			case ID_BTN_TEMP_GRAPH:
+
 	  				WM_DeleteWindow(hWin);
-	  				hWin = CreateTempWin();
+					state=ID_BTN_TEMP_GRAPH;
+					hWin=CreateTempGraph();
+					hData=GRAPH_DATA_YT_Create(GUI_BLUE, 700, 0,0);
 
-	  				hWinList = WM_GetDialogItem(hWin, ID_LISTTEMP);
+					GRAPH_AttachData(WM_GetDialogItem(hWin, (ID_GRAPH_0)), hData);
 
-	  				vTaskResume(acctempTaskHandle);
+					CHECKBOX_SetTextColor (WM_GetDialogItem(hWin, (ID_GRAPH_0)), GUI_RED);
+					vTaskResume(acctempTaskHandle);
+					GUI_Delay(100);
 
-	  				state = ID_BTN_TEMP;
-	  				i += 2;
 	  			break;
 	  			case ID_BTN_ACC:
-	  				WM_DeleteWindow(hWin);
-	  				hWin = CreateAccWin();
-
-	  				hWinText = WM_GetDialogItem(hWin, ID_TEXT_TEST);
-	  				hWinList = WM_GetDialogItem(hWin, ID_LISTACC);
-
-	  				vTaskResume(acctempTaskHandle);
-
-	  				state = ID_BTN_ACC;
-
+	  				createMenuAccel();
+	  			break;
+	  			case ID_BTN_AUTO:
+	  				createMenuAccel();
+	  				osTimerStart(periodicTimerHandle, PERIOD_TAJMER);
 	  			break;
 	  			case ID_BTN_NAZAD:
 	  				GUI_Clear();
@@ -520,6 +606,9 @@ void ButtonTask_init(void const * argument)
 	  				hWin = CreateMenu();
 	  				vTaskSuspend(acctempTaskHandle);
 	  				state = 0;
+
+	  				osTimerStop(periodicTimerHandle);
+
 	  			break;
 	  			case ID_BTN_NAZAD_TEMP:
 	  				GUI_Clear();
@@ -528,36 +617,89 @@ void ButtonTask_init(void const * argument)
 	  				vTaskSuspend(acctempTaskHandle);
 	  				state = 0;
 
+	  				osTimerStop(periodicTimerHandle);
 
 	  			break;
+	  			case ID_BTN_NAZAD_GRAPH:
+					GUI_Clear();
+					WM_DeleteWindow(hWin);
+					hWin = CreateMenu();
+					vTaskSuspend(acctempTaskHandle);
+					state = 0;
+
+
+				break;
 
 	  	  	}
-	  		if (state == ID_BTN_ACC) {
-	  			char* acc_x_val;
-	  			char* acc_y_val;
-	  			char* acc_z_val;
-
-//				j = TEXT_SetText(hWinText, test_string);
-	  			acc_x_val = pvPortMalloc(6*sizeof(char));
-	  			acc_y_val = pvPortMalloc(6*sizeof(char));
-	  			acc_z_val = pvPortMalloc(6*sizeof(char));
-
-	  			hWinList = WM_GetDialogItem(hWin, ID_LISTACC);
-	  			sprintf((char*)acc_x_val, "%d", accel_x);
-	  			sprintf((char*)acc_y_val, "%d", accel_y);
-	  			sprintf((char*)acc_z_val, "%d", accel_z);
-	  			LISTVIEW_SetItemText(hWinList, 0, 0, acc_x_val);
-	  			LISTVIEW_SetItemText(hWinList, 1, 0, acc_y_val);
-	  			LISTVIEW_SetItemText(hWinList, 2, 0, acc_z_val);
+		if (state == ID_BTN_ACC)
+		{
+			menuAccel();
+		}
 
 
-	  			vPortFree(acc_x_val);
-	  			vPortFree(acc_y_val);
-	  			vPortFree(acc_z_val);
-	  		}
     osDelay(10);
   }
   /* USER CODE END ButtonTask_init */
+}
+
+/* USER CODE BEGIN Header_TempRegTask_init */
+/**
+* @brief Function implementing the tempRegTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_TempRegTask_init */
+void TempRegTask_init(void const * argument)
+{
+  /* USER CODE BEGIN TempRegTask_init */
+	uint8_t stanje=0;
+  /* Infinite loop */
+  for(;;)
+  {
+
+	  if(temp<=MIN_TEMP)
+	  {
+		  if(stanje==0){
+			  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_15,1); //pali se crveno svetlo diode
+			  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4,0);
+			  stanje=1;
+		  }
+	  }else if(temp>=MAX_TEMP)
+	  {
+		  if(stanje==0){
+			  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_15,0);
+			  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4,1); //pali se plavo svetlo diode
+			  stanje=1;
+		  }
+	  }else if (temp>=MIN_TEMP && temp<=MAX_TEMP)
+	  {
+		  if(stanje==1){
+			  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_15,0); //gasi se dioda
+			  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4,0);
+			  stanje=0;
+		  }
+	  }
+
+
+    osDelay(200);
+  }
+  /* USER CODE END TempRegTask_init */
+}
+
+/* PTCallback function */
+void PTCallback(void const * argument)
+{
+  /* USER CODE BEGIN PTCallback */
+	if(ekran==0)
+	{
+		createMenuTemp();
+		ekran=1;
+	}else if(ekran==1)
+	{
+		createMenuAccel();
+		ekran=0;
+	}
+  /* USER CODE END PTCallback */
 }
 
 /**

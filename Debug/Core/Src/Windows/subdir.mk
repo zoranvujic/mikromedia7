@@ -8,18 +8,21 @@ C_SRCS += \
 ../Core/Src/Windows/MenuDLG.c \
 ../Core/Src/Windows/accWin.c \
 ../Core/Src/Windows/accWinDLG.c \
+../Core/Src/Windows/tempGraphWin.c \
 ../Core/Src/Windows/tempWin.c 
 
 OBJS += \
 ./Core/Src/Windows/MenuDLG.o \
 ./Core/Src/Windows/accWin.o \
 ./Core/Src/Windows/accWinDLG.o \
+./Core/Src/Windows/tempGraphWin.o \
 ./Core/Src/Windows/tempWin.o 
 
 C_DEPS += \
 ./Core/Src/Windows/MenuDLG.d \
 ./Core/Src/Windows/accWin.d \
 ./Core/Src/Windows/accWinDLG.d \
+./Core/Src/Windows/tempGraphWin.d \
 ./Core/Src/Windows/tempWin.d 
 
 
